@@ -114,11 +114,11 @@ if tela == "Visão Geral (Ocorrências)":
                 labels={'Ocorrencias': 'Número de Eventos', 'Proprietário Grupo Econômico Nome': 'Player'}
             )
             fig.update_layout(yaxis={'categoryorder':'total ascending'})
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         with col2:
             st.subheader("Base Comercial (Eventos)")
-            st.dataframe(ranking, use_container_width=True)
+            st.dataframe(ranking, width='stretch')
     else:
         st.warning("Nenhum dado encontrado para este filtro.")
 
@@ -157,11 +157,11 @@ elif tela == "Impacto em Energia (MWh)":
                 labels={'Energia_Suprimida_MWh': 'Energia Suprimida (MWh)', 'Proprietário Grupo Econômico Nome': 'Player'}
             )
             fig2.update_layout(yaxis={'categoryorder':'total ascending'})
-            st.plotly_chart(fig2, use_container_width=True)
+            st.plotly_chart(fig2, width='stretch')
 
         with col2:
             st.subheader("Tabela de Leads")
-            st.dataframe(metricas_comerciais, use_container_width=True)
+            st.dataframe(metricas_comerciais, width='stretch')
     else:
         st.warning("Nenhum dado encontrado para este filtro.")
 
@@ -177,15 +177,15 @@ elif tela == "Detalhamento por Usina":
     
     with col_filtro1:
         proprietarios = sorted(df_curtailment['Proprietário Grupo Econômico Nome'].dropna().unique())
-        proprietario_selecionado = st.selectbox("1. Selecione o Grupo Econômico:", ["Todos"] + list(proprietarios))
+        proprietario_selecionated = st.selectbox("1. Selecione o Grupo Econômico:", ["Todos"] + list(proprietarios))
         
     with col_filtro2:
         busca_usina = st.text_input("2. Pesquisar por Nome da Usina (Opcional):", "")
 
     df_filtrado = df_curtailment.copy()
     
-    if proprietario_selecionado != "Todos":
-        df_filtrado = df_filtrado[df_filtrado['Proprietário Grupo Econômico Nome'] == proprietario_selecionado]
+    if proprietario_selecionated != "Todos":
+        df_filtrado = df_filtrado[df_filtrado['Proprietário Grupo Econômico Nome'] == proprietario_selecionated]
         
     if busca_usina:
         df_filtrado = df_filtrado[df_filtrado['nom_usina'].str.contains(busca_usina, case=False, na=False)]
@@ -203,7 +203,7 @@ elif tela == "Detalhamento por Usina":
         ranking_usinas = ranking_usinas.sort_values(by='MWh_Suprimidos', ascending=False)
         
         st.subheader(f"Resultados Encontrados: {len(ranking_usinas)} usinas afetadas")
-        st.dataframe(ranking_usinas, use_container_width=True)
+        st.dataframe(ranking_usinas, width='stretch')
         
         st.subheader("Top Usinas do Filtro Atual (Por MWh Perdido)")
         fig_usinas = px.bar(
@@ -216,7 +216,7 @@ elif tela == "Detalhamento por Usina":
             labels={'MWh_Suprimidos': 'Energia Suprimida (MWh)', 'Eventos_Curtailment': 'Qtd. Cortes', 'nom_usina': 'Usina'}
         )
         fig_usinas.update_layout(yaxis={'categoryorder':'total ascending'})
-        st.plotly_chart(fig_usinas, use_container_width=True)
+        st.plotly_chart(fig_usinas, width='stretch')
         
     else:
         st.warning("Nenhum dado encontrado com os filtros aplicados. Tente alterar a pesquisa.")
@@ -280,11 +280,11 @@ elif tela == "Ranking de Clientes Alvo":
                     labels={'Energia_Suprimida_MWh': 'Energia Suprimida (MWh)', 'Eventos_Curtailment': 'Eventos', 'Proprietário Grupo Econômico Nome': 'Cliente'}
                 )
                 fig_alvos.update_layout(yaxis={'categoryorder':'total ascending'})
-                st.plotly_chart(fig_alvos, use_container_width=True)
+                st.plotly_chart(fig_alvos, width='stretch')
 
             with col2:
                 st.subheader("Dados da Carteira")
-                st.dataframe(ranking_alvos, use_container_width=True)
+                st.dataframe(ranking_alvos, width='stretch')
                 
             st.info(f"**Resumo da Carteira Alvo:** Os clientes selecionados sofreram um total de **{ranking_alvos['Energia_Suprimida_MWh'].sum():,.2f} MWh** suprimidos.")
         else:
