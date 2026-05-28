@@ -2,6 +2,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import gdown
+import os
 
 # 1. Configuração inicial da página
 st.set_page_config(page_title="Radar de Curtailment", layout="wide")
@@ -12,7 +14,7 @@ tela = st.sidebar.radio(
     "Selecione a Visão:", 
     [
         "Visão Geral (Ocorrências)", 
-        "Impacto em Energia (MWh)", # <--- Nova Tela Adicionada
+        "Impacto em Energia (MWh)",
         "Detalhamento por Usina"
     ]
 )
@@ -22,8 +24,19 @@ st.sidebar.info("Dashboard para identificação de oportunidades de produtos foc
 # 3. Carregamento e Tratamento dos Dados em Cache
 @st.cache_data
 def load_data():
-    caminho = r"C:\Users\gusri\OneDrive\Documentos\Teste de COFF\EOL\RESTRICAO_COFF_EOLICA_DETAIL_2026_COMBINADO_PLAYER.csv"
-    df = pd.read_csv(caminho, sep=';', low_memory=False)
+    # ID exato do seu arquivo no Google Drive
+    file_id = '1QMNnc28vKotb5KeaZL_nK_-ECgdWUQGC'
+    url = f'https://drive.google.com/uc?id={file_id}'
+    
+    # Nome do arquivo temporário que será salvo
+    arquivo_temporario = 'base_dados_drive.csv'
+    
+    # Baixa o arquivo do Drive apenas se ele ainda não existir na pasta
+    if not os.path.exists(arquivo_temporario):
+        gdown.download(url, arquivo_temporario, quiet=False)
+        
+    # Lê o arquivo baixado
+    df = pd.read_csv(arquivo_temporario, sep=';', low_memory=False)
     
     # Tratamento de todas as colunas numéricas necessárias para os cálculos
     colunas_numericas = ['flg_dadoventoinvalido', 'val_geracaoestimada', 'val_geracaoverificada', 'val_ventoverificado']
