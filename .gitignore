@@ -1,0 +1,8 @@
+# Ignorar bases de dados
+*.csv
+*.xlsx
+
+# Ignorar arquivos temporários do Python
+__pycache__/
+.venv/
+env/
