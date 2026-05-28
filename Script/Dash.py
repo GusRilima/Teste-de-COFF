@@ -15,7 +15,7 @@ tela = st.sidebar.radio(
     [
         "Visão Geral (Ocorrências)", 
         "Impacto em Energia (MWh)",
-        "Detalhamento por Usina",
+        "Detalhamento por Usina"
     ]
 )
 st.sidebar.markdown("---")
@@ -84,6 +84,7 @@ if tela == "Visão Geral (Ocorrências)":
         st.subheader("Base Comercial (Eventos)")
         st.dataframe(ranking, use_container_width=True)
 
+
 # ==========================================
 # TELA 2: IMPACTO EM ENERGIA (MWh)
 # ==========================================
@@ -125,6 +126,7 @@ elif tela == "Impacto em Energia (MWh)":
         st.subheader("Tabela de Leads")
         st.markdown("Inclui força do vento ocioso.")
         st.dataframe(metricas_comerciais, use_container_width=True)
+
 
 # ==========================================
 # TELA 3: DETALHAMENTO POR USINA
@@ -180,4 +182,3 @@ elif tela == "Detalhamento por Usina":
         
     else:
         st.warning("Nenhum dado encontrado com os filtros aplicados. Tente alterar a pesquisa.")
-
