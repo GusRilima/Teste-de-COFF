@@ -28,7 +28,8 @@ tela = st.sidebar.radio(
     [
         "Visão Geral (Ocorrências)", 
         "Impacto em Energia (MWh)",
-        "Detalhamento por Usina"
+        "Detalhamento por Usina",
+        "Ranking de Clientes Alvo" # <--- NOVA TELA ADICIONADA
     ]
 )
 st.sidebar.markdown("---")
@@ -130,7 +131,7 @@ elif tela == "Impacto em Energia (MWh)":
     st.markdown("Foco no **tamanho do prejuízo (MWh)**. Quais Grupos Econômicos deixaram de gerar mais energia por causa do curtailment?")
 
     if not df_curtailment.empty:
-        # Agrupando métricas comerciais de volume (Removida a média de vento/irradiância para não misturar no consolidado)
+        # Agrupando métricas comerciais de volume
         metricas_comerciais = df_curtailment.groupby('Proprietário Grupo Econômico Nome').agg(
             Eventos_Curtailment=('flg_restricao', 'count'),
             Energia_Suprimida_MWh=('energia_perdida_mwh', 'sum')
@@ -190,7 +191,7 @@ elif tela == "Detalhamento por Usina":
         df_filtrado = df_filtrado[df_filtrado['nom_usina'].str.contains(busca_usina, case=False, na=False)]
 
     if not df_filtrado.empty:
-        # Agrupando por detalhes da usina e trazendo Ocorrências + Energia (Adicionada a coluna "Fonte" na tabela)
+        # Agrupando por detalhes da usina e trazendo Ocorrências + Energia
         ranking_usinas = df_filtrado.groupby(
             ['Proprietário Grupo Econômico Nome', 'Fonte', 'nom_conjuntousina', 'nom_usina', 'ceg']
         ).agg(
@@ -219,3 +220,74 @@ elif tela == "Detalhamento por Usina":
         
     else:
         st.warning("Nenhum dado encontrado com os filtros aplicados. Tente alterar a pesquisa.")
+
+# ==========================================
+# TELA 4: RANKING DE CLIENTES ALVO
+# ==========================================
+elif tela == "Ranking de Clientes Alvo":
+    st.title(f"Monitoramento de Clientes Alvo - {filtro_fonte}")
+    st.markdown("Acompanhamento do impacto de curtailment especificamente na carteira selecionada.")
+
+    # Lista original passada para monitoramento
+    lista_clientes_alvo = [
+        "Auren Energia", "COPEL", "Axia Energia (CGT Eletrosul)", "Essentia Energia",
+        "Pontal Energy", "Renova Energia", "Alupar", "GD Sun", "Serveng Energia",
+        "Statkraft", "Axis Renováveis", "New Energy Options (NEO)", 
+        "Eólica Serra das Vacas - PEC Energia", "Matrix + Proton", "BW Guirapá", 
+        "V2i", "Aliança", "Raízen", "Bons Ventos da Serra II", "Bons Ventos da Serra I", 
+        "UFV Irecê - Perfin", "Fazsol", "SPP Energias", "CPFL Energia", 
+        "ADS Energias Renováveis", "SIMM Soluções", "Orion Transmissão", "Bulbe Energia", 
+        "Eólicas Babilônia (Actis)"
+    ]
+
+    # Todos os proprietários disponíveis na base atual
+    proprietarios_base = df_curtailment['Proprietário Grupo Econômico Nome'].dropna().unique().tolist()
+
+    # Tentando achar correspondências aproximadas ou exatas para deixar pré-selecionado
+    clientes_pre_selecionados = [c for c in proprietarios_base if any(alvo.lower() in c.lower() or c.lower() in alvo.lower() for alvo in lista_clientes_alvo)]
+
+    st.markdown("### Selecione os Clientes para Monitorar")
+    clientes_selecionados = st.multiselect(
+        "A lista abaixo tentou encontrar os nomes exatos na base de dados. Adicione ou remova conforme necessário:",
+        options=sorted(proprietarios_base),
+        default=clientes_pre_selecionados
+    )
+
+    if clientes_selecionados:
+        df_alvo = df_curtailment[df_curtailment['Proprietário Grupo Econômico Nome'].isin(clientes_selecionados)]
+        
+        if not df_alvo.empty:
+            # Agrupando dados dos clientes alvo
+            ranking_alvos = df_alvo.groupby('Proprietário Grupo Econômico Nome').agg(
+                Eventos_Curtailment=('flg_restricao', 'count'),
+                Energia_Suprimida_MWh=('energia_perdida_mwh', 'sum')
+            ).reset_index()
+
+            ranking_alvos['Energia_Suprimida_MWh'] = ranking_alvos['Energia_Suprimida_MWh'].round(2)
+            ranking_alvos = ranking_alvos.sort_values(by='Energia_Suprimida_MWh', ascending=False)
+
+            col1, col2 = st.columns([2, 1])
+
+            with col1:
+                st.subheader("Ranking por MWh Suprimido (Carteira Alvo)")
+                fig_alvos = px.bar(
+                    ranking_alvos,
+                    x='Energia_Suprimida_MWh',
+                    y='Proprietário Grupo Econômico Nome',
+                    orientation='h',
+                    color='Eventos_Curtailment',
+                    color_continuous_scale='Purples',
+                    labels={'Energia_Suprimida_MWh': 'Energia Suprimida (MWh)', 'Eventos_Curtailment': 'Eventos', 'Proprietário Grupo Econômico Nome': 'Cliente'}
+                )
+                fig_alvos.update_layout(yaxis={'categoryorder':'total ascending'})
+                st.plotly_chart(fig_alvos, use_container_width=True)
+
+            with col2:
+                st.subheader("Dados da Carteira")
+                st.dataframe(ranking_alvos, use_container_width=True)
+                
+            st.info(f"**Resumo da Carteira Alvo:** Os clientes selecionados sofreram um total de **{ranking_alvos['Energia_Suprimida_MWh'].sum():,.2f} MWh** suprimidos.")
+        else:
+            st.warning("Nenhum dado de curtailment encontrado para os clientes selecionados neste filtro.")
+    else:
+        st.info("Por favor, selecione pelo menos um cliente na caixa acima para visualizar o ranking.")
