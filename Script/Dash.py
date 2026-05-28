@@ -308,8 +308,8 @@ elif tela == "Inconsistências (Valores Negativos)":
     st.markdown("Esta visão exibe eventos de restrição onde a **Geração Verificada superou a Geração Estimada** (resultando em valores negativos de MWh perdidos).")
 
     if not df_negativos.empty:
-        # Agrupando pelo nome da Usina
-        ranking_negativos = df_negativos.groupby(['nom_usina', 'Proprietário Grupo Econômico Nome'], observed=True).agg(
+        # Agrupando pelo nome do Player (Grupo Econômico)
+        ranking_negativos = df_negativos.groupby('Proprietário Grupo Econômico Nome', observed=True).agg(
             Qtd_Inconsistencias=('energia_perdida_mwh', 'count'),
             MWh_Negativo=('energia_perdida_mwh', 'sum')
         ).reset_index()
@@ -324,15 +324,15 @@ elif tela == "Inconsistências (Valores Negativos)":
         col1, col2 = st.columns([2, 1.2])
 
         with col1:
-            st.subheader("Top Usinas com Maiores Saldos Negativos")
+            st.subheader("Top Players com Maiores Saldos Negativos")
             fig_neg = px.bar(
                 ranking_negativos.head(20), 
                 x='MWh_Negativo', 
-                y='nom_usina', 
+                y='Proprietário Grupo Econômico Nome', 
                 orientation='h',
                 color='MWh_Negativo',
                 color_continuous_scale='Reds_r', # Invertido para que mais vermelho = mais negativo
-                labels={'MWh_Negativo': 'Saldo Negativo (MWh)', 'nom_usina': 'Usina'}
+                labels={'MWh_Negativo': 'Saldo Negativo (MWh)', 'Proprietário Grupo Econômico Nome': 'Player'}
             )
             fig_neg.update_layout(yaxis={'categoryorder':'total descending'})
             st.plotly_chart(fig_neg, width='stretch')
