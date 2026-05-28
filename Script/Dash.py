@@ -29,13 +29,14 @@ tela = st.sidebar.radio(
         "Visão Geral (Ocorrências)", 
         "Impacto em Energia (MWh)",
         "Detalhamento por Usina",
-        "Ranking de Clientes Alvo" # <--- NOVA TELA ADICIONADA
+        "Ranking de Clientes Alvo",
+        "Inconsistências (Valores Negativos)" # <--- NOVA TELA ADICIONADA
     ]
 )
 st.sidebar.markdown("---")
 st.sidebar.info("Dashboard para identificação de oportunidades em Curtailment (Eólico e Solar).")
 
-# 3. Carregamento e Tratamento dos Dados em Cache
+# 3. Carregamento e Tratamento dos Dados em Cache (OTIMIZADO PARA RAM)
 @st.cache_data
 def load_data():
     # IDs do Google Drive
@@ -47,52 +48,59 @@ def load_data():
     if not os.path.exists(arq_eol):
         gdown.download(f'https://drive.google.com/uc?id={id_eol}', arq_eol, quiet=False)
     
-    df_eol = pd.read_csv(arq_eol, sep=';', low_memory=False)
+    # OTIMIZAÇÃO: low_memory=True consome menos RAM no carregamento
+    df_eol = pd.read_csv(arq_eol, sep=';', low_memory=True)
     df_eol['Fonte'] = 'Eólica'
-    # Padronizando o nome da coluna de flag para as duas fontes
+    
     if 'flg_dadoventoinvalido' in df_eol.columns:
         df_eol['flg_restricao'] = pd.to_numeric(df_eol['flg_dadoventoinvalido'], errors='coerce')
+        
+    # OTIMIZAÇÃO: Filtrar apenas os eventos de curtailment IMEDIATAMENTE (salva muita RAM no Cache)
+    df_eol = df_eol[df_eol['flg_restricao'] == 1].copy()
     
     # --- DADOS SOLARES ---
     arq_ufv = 'base_ufv_drive.csv'
     if not os.path.exists(arq_ufv):
         gdown.download(f'https://drive.google.com/uc?id={id_ufv}', arq_ufv, quiet=False)
         
-    df_ufv = pd.read_csv(arq_ufv, sep=';', low_memory=False)
+    df_ufv = pd.read_csv(arq_ufv, sep=';', low_memory=True)
     df_ufv['Fonte'] = 'Solar'
-    # Padronizando o nome da coluna de flag para as duas fontes
+    
     if 'flg_dadoirradianciainvalido' in df_ufv.columns:
         df_ufv['flg_restricao'] = pd.to_numeric(df_ufv['flg_dadoirradianciainvalido'], errors='coerce')
+        
+    # OTIMIZAÇÃO: Filtrar apenas os eventos de curtailment IMEDIATAMENTE
+    df_ufv = df_ufv[df_ufv['flg_restricao'] == 1].copy()
         
     # --- JUNTANDO TUDO ---
     df_completo = pd.concat([df_eol, df_ufv], ignore_index=True)
     
-    # Garantindo que as colunas de cálculo são numéricas
+    # Garantindo que as colunas de cálculo são numéricas e criando a coluna de perda
     colunas_numericas = ['val_geracaoestimada', 'val_geracaoverificada']
     for col in colunas_numericas:
         if col in df_completo.columns:
             df_completo[col] = pd.to_numeric(df_completo[col], errors='coerce')
             
+    df_completo['energia_perdida_mwh'] = df_completo['val_geracaoestimada'] - df_completo['val_geracaoverificada']
+    
+    # OTIMIZAÇÃO: Converter colunas de texto (object) para categoria reduz uso de RAM em até 80%
+    for col in df_completo.select_dtypes(include=['object']).columns:
+        df_completo[col] = df_completo[col].astype('category')
+            
     return df_completo
 
-df = load_data()
+# Carrega os dados (já filtrados apenas para ocorrências de restrição)
+df_base = load_data()
 
-# Isolando eventos de Curtailment e criando a coluna de Energia Perdida
-df_curtailment = df[df['flg_restricao'] == 1].copy()
-df_curtailment['energia_perdida_mwh'] = df_curtailment['val_geracaoestimada'] - df_curtailment['val_geracaoverificada']
-
-# ==========================================
-# NOVO FILTRO APLICADO AQUI
-# ==========================================
-# Filtrar apenas os valores onde o impacto de energia é maior ou igual a zero (removendo negativos)
-df_curtailment = df_curtailment[df_curtailment['energia_perdida_mwh'] >= 0]
-
-
-# Aplicando o filtro do Menu Lateral
+# Aplicando o filtro de Fonte do Menu Lateral
 if filtro_fonte == "Apenas Eólica":
-    df_curtailment = df_curtailment[df_curtailment['Fonte'] == 'Eólica']
+    df_base = df_base[df_base['Fonte'] == 'Eólica']
 elif filtro_fonte == "Apenas Solar":
-    df_curtailment = df_curtailment[df_curtailment['Fonte'] == 'Solar']
+    df_base = df_base[df_base['Fonte'] == 'Solar']
+
+# Separando bases: Positivos (Impacto Real) e Negativos (Inconsistências)
+df_curtailment = df_base[df_base['energia_perdida_mwh'] >= 0]
+df_negativos = df_base[df_base['energia_perdida_mwh'] < 0]
 
 
 # ==========================================
@@ -103,8 +111,7 @@ if tela == "Visão Geral (Ocorrências)":
     st.markdown("Identificação de players com o **maior volume de eventos de restrição** (quantidade de vezes que sofreram corte).")
 
     if not df_curtailment.empty:
-        # Criando o ranking por proprietário (Frequência)
-        ranking = df_curtailment.groupby('Proprietário Grupo Econômico Nome').size().reset_index(name='Ocorrencias')
+        ranking = df_curtailment.groupby('Proprietário Grupo Econômico Nome', observed=True).size().reset_index(name='Ocorrencias')
         ranking = ranking.sort_values(by='Ocorrencias', ascending=False)
 
         col1, col2 = st.columns([2, 1])
@@ -138,16 +145,12 @@ elif tela == "Impacto em Energia (MWh)":
     st.markdown("Foco no **tamanho do prejuízo (MWh)**. Quais Grupos Econômicos deixaram de gerar mais energia por causa do curtailment?")
 
     if not df_curtailment.empty:
-        # Agrupando métricas comerciais de volume
-        metricas_comerciais = df_curtailment.groupby('Proprietário Grupo Econômico Nome').agg(
+        metricas_comerciais = df_curtailment.groupby('Proprietário Grupo Econômico Nome', observed=True).agg(
             Eventos_Curtailment=('flg_restricao', 'count'),
             Energia_Suprimida_MWh=('energia_perdida_mwh', 'sum')
         ).reset_index()
 
-        # Ordenando pelo volume de energia perdida
         metricas_comerciais = metricas_comerciais.sort_values(by='Energia_Suprimida_MWh', ascending=False)
-        
-        # Arredondando para apresentação
         metricas_comerciais['Energia_Suprimida_MWh'] = metricas_comerciais['Energia_Suprimida_MWh'].round(2)
 
         col1, col2 = st.columns([2, 1.2])
@@ -198,13 +201,15 @@ elif tela == "Detalhamento por Usina":
         df_filtrado = df_filtrado[df_filtrado['nom_usina'].str.contains(busca_usina, case=False, na=False)]
 
     if not df_filtrado.empty:
-        # Agrupando por detalhes da usina e trazendo Ocorrências + Energia
         ranking_usinas = df_filtrado.groupby(
-            ['Proprietário Grupo Econômico Nome', 'Fonte', 'nom_conjuntousina', 'nom_usina', 'ceg']
+            ['Proprietário Grupo Econômico Nome', 'Fonte', 'nom_conjuntousina', 'nom_usina', 'ceg'], observed=True
         ).agg(
             Eventos_Curtailment=('flg_restricao', 'count'),
             MWh_Suprimidos=('energia_perdida_mwh', 'sum')
         ).reset_index()
+        
+        # Remove usinas que ficaram zeradas após os filtros
+        ranking_usinas = ranking_usinas[ranking_usinas['Eventos_Curtailment'] > 0]
         
         ranking_usinas['MWh_Suprimidos'] = ranking_usinas['MWh_Suprimidos'].round(2)
         ranking_usinas = ranking_usinas.sort_values(by='MWh_Suprimidos', ascending=False)
@@ -224,9 +229,9 @@ elif tela == "Detalhamento por Usina":
         )
         fig_usinas.update_layout(yaxis={'categoryorder':'total ascending'})
         st.plotly_chart(fig_usinas, width='stretch')
-        
     else:
         st.warning("Nenhum dado encontrado com os filtros aplicados. Tente alterar a pesquisa.")
+
 
 # ==========================================
 # TELA 4: RANKING DE CLIENTES ALVO
@@ -235,7 +240,6 @@ elif tela == "Ranking de Clientes Alvo":
     st.title(f"Monitoramento de Clientes Alvo - {filtro_fonte}")
     st.markdown("Acompanhamento do impacto de curtailment especificamente na carteira selecionada.")
 
-    # Lista original passada para monitoramento
     lista_clientes_alvo = [
         "Auren Energia", "COPEL", "Axia Energia (CGT Eletrosul)", "Essentia Energia",
         "Pontal Energy", "Renova Energia", "Alupar", "GD Sun", "Serveng Energia",
@@ -247,10 +251,7 @@ elif tela == "Ranking de Clientes Alvo":
         "Eólicas Babilônia (Actis)"
     ]
 
-    # Todos os proprietários disponíveis na base atual
     proprietarios_base = df_curtailment['Proprietário Grupo Econômico Nome'].dropna().unique().tolist()
-
-    # Tentando achar correspondências aproximadas ou exatas para deixar pré-selecionado
     clientes_pre_selecionados = [c for c in proprietarios_base if any(alvo.lower() in c.lower() or c.lower() in alvo.lower() for alvo in lista_clientes_alvo)]
 
     st.markdown("### Selecione os Clientes para Monitorar")
@@ -264,12 +265,12 @@ elif tela == "Ranking de Clientes Alvo":
         df_alvo = df_curtailment[df_curtailment['Proprietário Grupo Econômico Nome'].isin(clientes_selecionados)]
         
         if not df_alvo.empty:
-            # Agrupando dados dos clientes alvo
-            ranking_alvos = df_alvo.groupby('Proprietário Grupo Econômico Nome').agg(
+            ranking_alvos = df_alvo.groupby('Proprietário Grupo Econômico Nome', observed=True).agg(
                 Eventos_Curtailment=('flg_restricao', 'count'),
                 Energia_Suprimida_MWh=('energia_perdida_mwh', 'sum')
             ).reset_index()
 
+            ranking_alvos = ranking_alvos[ranking_alvos['Eventos_Curtailment'] > 0]
             ranking_alvos['Energia_Suprimida_MWh'] = ranking_alvos['Energia_Suprimida_MWh'].round(2)
             ranking_alvos = ranking_alvos.sort_values(by='Energia_Suprimida_MWh', ascending=False)
 
@@ -298,3 +299,46 @@ elif tela == "Ranking de Clientes Alvo":
             st.warning("Nenhum dado de curtailment encontrado para os clientes selecionados neste filtro.")
     else:
         st.info("Por favor, selecione pelo menos um cliente na caixa acima para visualizar o ranking.")
+
+# ==========================================
+# TELA 5: INCONSISTÊNCIAS (VALORES NEGATIVOS)
+# ==========================================
+elif tela == "Inconsistências (Valores Negativos)":
+    st.title(f"Inconsistências: Valores Negativos - {filtro_fonte}")
+    st.markdown("Esta visão exibe eventos de restrição onde a **Geração Verificada superou a Geração Estimada** (resultando em valores negativos de MWh perdidos).")
+
+    if not df_negativos.empty:
+        # Agrupando pelo nome da Usina
+        ranking_negativos = df_negativos.groupby(['nom_usina', 'Proprietário Grupo Econômico Nome'], observed=True).agg(
+            Qtd_Inconsistencias=('energia_perdida_mwh', 'count'),
+            MWh_Negativo=('energia_perdida_mwh', 'sum')
+        ).reset_index()
+
+        # Limpar quem não tem ocorrências no grupo para não poluir
+        ranking_negativos = ranking_negativos[ranking_negativos['Qtd_Inconsistencias'] > 0]
+        
+        # Ordenando do MAIS negativo para o menos negativo
+        ranking_negativos = ranking_negativos.sort_values(by='MWh_Negativo', ascending=True)
+        ranking_negativos['MWh_Negativo'] = ranking_negativos['MWh_Negativo'].round(2)
+
+        col1, col2 = st.columns([2, 1.2])
+
+        with col1:
+            st.subheader("Top Usinas com Maiores Saldos Negativos")
+            fig_neg = px.bar(
+                ranking_negativos.head(20), 
+                x='MWh_Negativo', 
+                y='nom_usina', 
+                orientation='h',
+                color='MWh_Negativo',
+                color_continuous_scale='Reds_r', # Invertido para que mais vermelho = mais negativo
+                labels={'MWh_Negativo': 'Saldo Negativo (MWh)', 'nom_usina': 'Usina'}
+            )
+            fig_neg.update_layout(yaxis={'categoryorder':'total descending'})
+            st.plotly_chart(fig_neg, width='stretch')
+
+        with col2:
+            st.subheader("Detalhamento (Inconsistências)")
+            st.dataframe(ranking_negativos, width='stretch')
+    else:
+        st.success("Não foram encontrados valores negativos de energia para o filtro selecionado. Excelente!")
