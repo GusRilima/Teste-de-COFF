@@ -81,6 +81,13 @@ df = load_data()
 df_curtailment = df[df['flg_restricao'] == 1].copy()
 df_curtailment['energia_perdida_mwh'] = df_curtailment['val_geracaoestimada'] - df_curtailment['val_geracaoverificada']
 
+# ==========================================
+# NOVO FILTRO APLICADO AQUI
+# ==========================================
+# Filtrar apenas os valores onde o impacto de energia é maior ou igual a zero (removendo negativos)
+df_curtailment = df_curtailment[df_curtailment['energia_perdida_mwh'] >= 0]
+
+
 # Aplicando o filtro do Menu Lateral
 if filtro_fonte == "Apenas Eólica":
     df_curtailment = df_curtailment[df_curtailment['Fonte'] == 'Eólica']
