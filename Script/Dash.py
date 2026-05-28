@@ -15,7 +15,8 @@ tela = st.sidebar.radio(
     [
         "Visão Geral (Ocorrências)", 
         "Impacto em Energia (MWh)",
-        "Detalhamento por Usina"
+        "Detalhamento por Usina",
+        "Acompanhamento Comercial (CRM)" # <--- NOVA TELA ADICIONADA
     ]
 )
 st.sidebar.markdown("---")
@@ -24,8 +25,8 @@ st.sidebar.info("Dashboard para identificação de oportunidades de produtos foc
 # 3. Carregamento e Tratamento dos Dados em Cache
 @st.cache_data
 def load_data():
-    # ID exato do seu arquivo no Google Drive
-    file_id = '1QMNnc28vKotb5KeaZL_nK_-ECgdWUQGC'
+    # ID exato do NOVO arquivo no Google Drive
+    file_id = '1-81IsyRU-7DUmbotSe4-f2Xu_1HBWpHC'
     url = f'https://drive.google.com/uc?id={file_id}'
     
     # Nome do arquivo temporário que será salvo
@@ -52,6 +53,23 @@ df = load_data()
 df_curtailment = df[df['flg_dadoventoinvalido'] == 1].copy()
 df_curtailment['energia_perdida_mwh'] = df_curtailment['val_geracaoestimada'] - df_curtailment['val_geracaoverificada']
 
+# ==========================================
+# INICIALIZANDO O BANCO DE DADOS DO CRM (Sessão)
+# ==========================================
+# Verifica se a tabela de CRM já existe na memória do dashboard. Se não, cria.
+if 'crm_data' not in st.session_state:
+    # Cria uma lista de leads baseada na energia total suprimida
+    leads = df_curtailment.groupby('Proprietário Grupo Econômico Nome')['energia_perdida_mwh'].sum().reset_index()
+    leads.columns = ['Grupo Econômico', 'Potencial_MWh']
+    leads['Potencial_MWh'] = leads['Potencial_MWh'].round(2)
+    leads = leads.sort_values(by='Potencial_MWh', ascending=False)
+    
+    # Adiciona uma coluna de Status com o valor padrão
+    leads['Status Comercial'] = '1 - A Abordar'
+    leads['Anotações'] = ''
+    
+    # Salva na memória
+    st.session_state['crm_data'] = leads
 
 # ==========================================
 # TELA 1: VISÃO GERAL (OCORRÊNCIAS)
@@ -84,9 +102,8 @@ if tela == "Visão Geral (Ocorrências)":
         st.subheader("Base Comercial (Eventos)")
         st.dataframe(ranking, use_container_width=True)
 
-
 # ==========================================
-# TELA 2: IMPACTO EM ENERGIA (MWh) - NOVA TELA
+# TELA 2: IMPACTO EM ENERGIA (MWh)
 # ==========================================
 elif tela == "Impacto em Energia (MWh)":
     st.title("Dor Financeira: Energia Suprimida")
@@ -126,7 +143,6 @@ elif tela == "Impacto em Energia (MWh)":
         st.subheader("Tabela de Leads")
         st.markdown("Inclui força do vento ocioso.")
         st.dataframe(metricas_comerciais, use_container_width=True)
-
 
 # ==========================================
 # TELA 3: DETALHAMENTO POR USINA
@@ -173,7 +189,7 @@ elif tela == "Detalhamento por Usina":
             x='MWh_Suprimidos',
             y='nom_usina',
             orientation='h',
-            color='Eventos_Curtailment', # Tamanho da barra = MWh, Cor = Frequencia
+            color='Eventos_Curtailment',
             color_continuous_scale='Blues',
             labels={'MWh_Suprimidos': 'Energia Suprimida (MWh)', 'Eventos_Curtailment': 'Qtd. Cortes', 'nom_usina': 'Usina'}
         )
@@ -182,3 +198,79 @@ elif tela == "Detalhamento por Usina":
         
     else:
         st.warning("Nenhum dado encontrado com os filtros aplicados. Tente alterar a pesquisa.")
+
+# ==========================================
+# TELA 4: ACOMPANHAMENTO COMERCIAL (CRM)
+# ==========================================
+elif tela == "Acompanhamento Comercial (CRM)":
+    st.title("Acompanhamento Comercial (CRM)")
+    st.markdown("Gerencie o pipeline de vendas. Altere os status abaixo diretamente na tabela para atualizar os gráficos.")
+
+    # Opções de status disponíveis
+    opcoes_status = [
+        '1 - A Abordar', 
+        '2 - Em Contato', 
+        '3 - Em Negociação', 
+        '4 - Proposta Enviada',
+        '5 - Fechado (Ganha)', 
+        '6 - Descartado (Perdida)'
+    ]
+
+    # Exibe a tabela interativa para o usuário editar
+    st.subheader("Tabela de Pipeline")
+    df_crm_editado = st.data_editor(
+        st.session_state['crm_data'],
+        column_config={
+            "Status Comercial": st.column_config.SelectboxColumn(
+                "Status Comercial",
+                help="Selecione a fase atual da negociação",
+                options=opcoes_status,
+                required=True,
+            ),
+            "Anotações": st.column_config.TextColumn(
+                "Anotações",
+                help="Insira observações sobre a negociação"
+            ),
+            "Grupo Econômico": st.column_config.TextColumn(disabled=True),
+            "Potencial_MWh": st.column_config.NumberColumn(disabled=True)
+        },
+        use_container_width=True,
+        hide_index=True
+    )
+    
+    # Atualiza a memória com as edições do usuário
+    st.session_state['crm_data'] = df_crm_editado
+
+    st.markdown("---")
+    
+    # Criando visualizações baseadas nos status editados
+    col_grafico1, col_grafico2 = st.columns(2)
+    
+    # Resumo da Quantidade de Empresas por Status
+    resumo_qtd = df_crm_editado.groupby('Status Comercial').size().reset_index(name='Qtd_Empresas')
+    
+    # Resumo do MWh em Jogo por Status
+    resumo_mwh = df_crm_editado.groupby('Status Comercial')['Potencial_MWh'].sum().reset_index()
+
+    with col_grafico1:
+        st.subheader("Empresas por Fase")
+        fig_funil_qtd = px.funnel(
+            resumo_qtd, 
+            x='Qtd_Empresas', 
+            y='Status Comercial',
+            labels={'Qtd_Empresas': 'Quantidade de Empresas'}
+        )
+        # Força a ordem correta do funil
+        fig_funil_qtd.update_yaxes(categoryorder='array', categoryarray=opcoes_status[::-1])
+        st.plotly_chart(fig_funil_qtd, use_container_width=True)
+
+    with col_grafico2:
+        st.subheader("MWh Potencial por Fase")
+        fig_pizza_mwh = px.pie(
+            resumo_mwh, 
+            values='Potencial_MWh', 
+            names='Status Comercial',
+            hole=0.4,
+            color_discrete_sequence=px.colors.qualitative.Pastel
+        )
+        st.plotly_chart(fig_pizza_mwh, use_container_width=True)
