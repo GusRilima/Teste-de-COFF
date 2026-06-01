@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -36,7 +35,7 @@ tela = st.sidebar.radio(
 st.sidebar.markdown("---")
 st.sidebar.info("Dashboard para identificação de oportunidades em Curtailment (Eólico e Solar).")
 
-# 3. Carregamento e Tratamento dos Dados em Cache (OTIMIZADO PARA RAM)
+# 3. Carregamento e Tratamento dos Dados em Cache
 @st.cache_data
 def load_data():
     # IDs do Google Drive
@@ -48,14 +47,14 @@ def load_data():
     if not os.path.exists(arq_eol):
         gdown.download(f'https://drive.google.com/uc?id={id_eol}', arq_eol, quiet=False)
     
-    # OTIMIZAÇÃO: low_memory=True consome menos RAM no carregamento
+    # OTIMIZAÇÃO
     df_eol = pd.read_csv(arq_eol, sep=';', low_memory=True)
     df_eol['Fonte'] = 'Eólica'
     
     if 'flg_dadoventoinvalido' in df_eol.columns:
         df_eol['flg_restricao'] = pd.to_numeric(df_eol['flg_dadoventoinvalido'], errors='coerce')
         
-    # OTIMIZAÇÃO: Filtrar apenas os eventos de curtailment IMEDIATAMENTE (salva muita RAM no Cache)
+    # OTIMIZAÇÃO
     df_eol = df_eol[df_eol['flg_restricao'] == 1].copy()
     
     # --- DADOS SOLARES ---
