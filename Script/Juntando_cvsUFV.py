@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os
 import pandas as pd
 import glob
@@ -10,8 +9,8 @@ prefixo = "RESTRICAO_COFF_FOTOVOLTAICA_DETAIL_2026"
 # Define o nome do arquivo que será criado no final com todos os dados
 arquivo_saida = os.path.join(diretorio, "RESTRICAO_COFF_FOTOVOLTAICA_DETAIL_2026_COMBINADO.csv")
 
-# Padrão de busca (busca arquivos que começam com o prefixo e terminam com .csv)
-# Exemplo que ele encontra: RESTRICAO_COFF_FOTOVOLTAICA_DETAIL_2026_01.csv, etc.
+# Padrão de busca 
+# Exemplo que ele encontra: RESTRICAO_COFF_FOTOVOLTAICA_DETAIL_2026_01.csv
 padrao_busca = os.path.join(diretorio, f"{prefixo}*.csv")
 arquivos = glob.glob(padrao_busca)
 
@@ -27,7 +26,7 @@ lista_dataframes = []
 
 for arquivo in arquivos:
     try:
-        # Se os seus CSVs forem no padrão brasileiro (separados por ;), troque por pd.read_csv(arquivo, sep=';', encoding='latin1')
+        # Se os CSVs forem no padrão brasileiro (separados por ;), troque por pd.read_csv(arquivo, sep=';', encoding='latin1')
         df = pd.read_csv(arquivo)
         lista_dataframes.append(df)
         print(f" -> Lido com sucesso: {os.path.basename(arquivo)}")
