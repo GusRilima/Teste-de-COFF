@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -6,7 +5,7 @@ import seaborn as sns
 caminho_entrada = r"C:\Users\gusri\OneDrive\Documentos\Teste de COFF\EOL\RESTRICAO_COFF_EOLICA_DETAIL_2026_COMBINADO_PLAYER.csv"
 caminho_saida = r"C:\Users\gusri\OneDrive\Documentos\Teste de COFF\EOL\RELATORIO_COMERCIAL_LEADS.csv"
 
-print("⏳ Processando métricas comerciais...")
+print("Processando métricas comerciais...")
 df = pd.read_csv(caminho_entrada, sep=';', low_memory=False)
 
 # Tratamento e conversão
@@ -33,12 +32,12 @@ metricas_comerciais = metricas_comerciais.sort_values(by='Energia_Suprimida_MWh'
 metricas_comerciais['Energia_Suprimida_MWh'] = metricas_comerciais['Energia_Suprimida_MWh'].round(2)
 metricas_comerciais['Vento_Medio_Desperdicado'] = metricas_comerciais['Vento_Medio_Desperdicado'].round(2)
 
-print("\n🏆 TOP 5 LEADS COMERCIAIS (Por Energia Suprimida):")
+print("\nTOP 5 LEADS COMERCIAIS (Por Energia Suprimida):")
 print(metricas_comerciais.head(5).to_string(index=False))
 
 # Exportando a tabela de Leads para a equipe de vendas
 metricas_comerciais.to_csv(caminho_saida, sep=';', index=False)
-print(f"\n✅ Relatório comercial salvo em: {caminho_saida}")
+print(f"\nRelatório comercial salvo em: {caminho_saida}")
 
 # Plotagem: Gráfico para apresentação comercial
 plt.figure(figsize=(12, 6))
