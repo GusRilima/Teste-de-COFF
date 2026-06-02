@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import pandas as pd
 import os
 
@@ -37,7 +36,6 @@ try:
         how='left'
     )
 
-    # Removendo a coluna 'CEG' maiúscula que veio do Excel para não ficar duplicada, 
     # mantendo apenas a 'ceg' original do CSV e a nova coluna de Proprietário
     if 'CEG' in df_final.columns and 'ceg' in df_final.columns:
         df_final = df_final.drop(columns=['CEG'])
