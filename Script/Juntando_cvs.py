@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os
 import pandas as pd
 import glob
@@ -10,12 +9,12 @@ prefixo = "RESTRICAO_COFF_EOLICA_DETAIL_2026"
 # Define o nome do arquivo que será criado no final com todos os dados
 arquivo_saida = os.path.join(diretorio, "RESTRICAO_COFF_EOLICA_DETAIL_2026_COMBINADO.csv")
 
-# Padrão de busca (busca arquivos que começam com o prefixo e terminam com .csv)
-# Exemplo que ele encontra: RESTRICAO_COFF_EOLICA_DETAIL_2026_01.csv, etc.
+# Padrão de busca
+# Exemplo que ele encontra: RESTRICAO_COFF_EOLICA_DETAIL_2026_01.csv
 padrao_busca = os.path.join(diretorio, f"{prefixo}*.csv")
 arquivos = glob.glob(padrao_busca)
 
-# Tenta encontrar .cvs (caso a extensão esteja como no título da sua pergunta) caso o .csv falhe
+# Tenta encontrar .cvs 
 if len(arquivos) == 0:
     padrao_busca_alt = os.path.join(diretorio, f"{prefixo}*")
     arquivos = [f for f in glob.glob(padrao_busca_alt) if f.lower().endswith(('.csv', '.cvs'))]
@@ -34,7 +33,7 @@ for arquivo in arquivos:
     except Exception as e:
         print(f" -> Erro ao ler {os.path.basename(arquivo)}: {e}")
 
-# Verificação de segurança (Impede o ValueError)
+# Verificação de segurança
 if len(lista_dataframes) > 0:
     print("\nJuntando os arquivos...")
     # Junta tudo em um único DataFrame
